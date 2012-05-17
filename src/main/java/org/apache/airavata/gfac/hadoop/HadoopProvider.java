@@ -20,10 +20,15 @@
  */
 package org.apache.airavata.gfac.hadoop;
 
+import org.apache.airavata.commons.gfac.type.ActualParameter;
 import org.apache.airavata.core.gfac.context.invocation.InvocationContext;
 import org.apache.airavata.core.gfac.exception.GfacException;
 import org.apache.airavata.core.gfac.exception.ProviderException;
+import org.apache.airavata.core.gfac.notification.GFacNotifier;
 import org.apache.airavata.core.gfac.provider.Provider;
+import org.apache.airavata.core.gfac.utils.GfacUtils;
+import org.apache.airavata.core.gfac.utils.OutputUtils;
+import org.apache.airavata.schemas.gfac.ApplicationDeploymentDescriptionType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,8 +48,27 @@ public class HadoopProvider implements Provider {
     }
 
     public Map<String, ?> execute(InvocationContext invocationContext) throws ProviderException {
+        ApplicationDeploymentDescriptionType appDesc = invocationContext.getExecutionDescription().getApp().getType();
+        GFacNotifier notifier = invocationContext.getExecutionContext().getNotifier();
 
-        return null;
+        notifier.startExecution(invocationContext);
+
+        HadoopWrapper hadoopWrapper = new HadoopWrapper(invocationContext);
+
+        try {
+            hadoopWrapper.runJar(appDesc.getStandardOutput(), appDesc.getStandardError());
+        } catch (Exception e) {
+            throw new ProviderException("Hadoop job execution failed.", e);
+        }
+
+        notifier.finishExecution(invocationContext);
+
+        try{
+            String stdOutStr = GfacUtils.readFileToString(appDesc.getStandardOutput());
+            return OutputUtils.fillOutputFromStdout(invocationContext.<ActualParameter>getOutput(), stdOutStr);
+        } catch (Exception e) {
+            throw new ProviderException("Hadoop job output processing failed.", e);
+        }
     }
 
     public void dispose(InvocationContext invocationContext) throws GfacException {
